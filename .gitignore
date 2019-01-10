@@ -102,3 +102,11 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+*.sqlite3
+*.sql
+*.csv
+*.xml
+*.gz
+.vscode/*
+!.vscode/settings.json
