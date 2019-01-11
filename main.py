@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 from csv import reader
@@ -9,7 +9,7 @@ from datetime import datetime
 script_dir = os.path.dirname(os.path.abspath(__file__))
 db_file_name = "sotorrent18_12.sqlite3"
 db_file = os.path.join(script_dir, db_file_name)
-commit_block = 1024 * 1024  # arbitrary
+commit_block = 1024  # arbitrary
 
 
 def create_database(conn):
