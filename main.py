@@ -257,6 +257,10 @@ def load_so_from_xml(conn):
                 print("\r\tcommit no {}, elapsed: {}".format(
                     commit_counter, datetime.now() - t_start), end="")
 
+            # Clean up no longer needed elements
+            elm.clear()
+        # del context
+
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
         print("\n\t{} took {} ({} rows)".format(
