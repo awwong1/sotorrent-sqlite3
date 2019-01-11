@@ -9,6 +9,7 @@ from datetime import datetime
 script_dir = os.path.dirname(os.path.abspath(__file__))
 db_file_name = "sotorrent18_12.sqlite3"
 db_file = os.path.join(script_dir, db_file_name)
+commit_block = 1024 * 1024  # arbitrary
 
 
 def create_database(conn):
@@ -235,7 +236,6 @@ def load_so_from_xml(conn):
         t_start = datetime.now()
         print("\tStarting {} at {}".format(table, t_start))
         c.execute("PRAGMA foreign_keys = OFF;")
-        commit_block = 1024 * 1024  # arbitrary
         counter = 0
         commit_counter = 0
         for _, elm in context:
@@ -306,7 +306,7 @@ def create_sotorrent_tables(conn):
 
     sql_create_postversion = """
         CREATE TABLE PostVersion (
-            Id INT NOT NULL AUTOINCREMENT,
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
             PostId INT NOT NULL,
             PostTypeId TINYINT NOT NULL,
             PostHistoryId INT NOT NULL,
@@ -314,7 +314,6 @@ def create_sotorrent_tables(conn):
             CreationDate DATETIME NOT NULL,
             PredPostHistoryId INT DEFAULT NULL,
             SuccPostHistoryId INT DEFAULT NULL,
-            PRIMARY KEY(Id),
             UNIQUE(PostHistoryId, PredPostHistoryId, SuccPostHistoryId),
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
             FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
@@ -326,7 +325,7 @@ def create_sotorrent_tables(conn):
 
     sql_create_postblockversion = """
         CREATE TABLE PostBlockVersion (
-            Id INT NOT NULL AUTOINCREMENT,
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
             PostBlockTypeId TINYINT NOT NULL,
             PostId INT NOT NULL,
             PostHistoryId INT NOT NULL,
@@ -344,7 +343,6 @@ def create_sotorrent_tables(conn):
             Length INT NOT NULL,
             LineCount INT NOT NULL,
             Content TEXT NOT NULL,
-            PRIMARY KEY(Id),
             UNIQUE(PostHistoryId, PostBlockTypeId, LocalId),
             FOREIGN KEY(PostBlockTypeId) REFERENCES PostBlockType(Id),
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
@@ -357,7 +355,7 @@ def create_sotorrent_tables(conn):
 
     sql_create_postblockdiff = """
         CREATE TABLE PostBlockDiff (
-            Id INT NOT NULL AUTOINCREMENT,
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
             PostId INT NOT NULL,
             PostHistoryId INT NOT NULL,
             LocalId INT NOT NULL,
@@ -367,7 +365,6 @@ def create_sotorrent_tables(conn):
             PredPostBlockVersionId INT NOT NULL,
             PostBlockDiffOperationId TINYINT NOT NULL,
             Text TEXT NOT NULL,
-            PRIMARY KEY(Id),
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
             FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
             FOREIGN KEY(PredPostHistoryId) REFERENCES PostHistory(Id),
@@ -378,7 +375,7 @@ def create_sotorrent_tables(conn):
 
     sql_create_postversionurl = """
         CREATE TABLE PostVersionUrl (
-            Id INT NOT NULL AUTOINCREMENT,
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
             PostId INT NOT NULL,
             PostHistoryId INT NOT NULL,
             PostBlockVersionId INT NOT NULL,
@@ -393,14 +390,13 @@ def create_sotorrent_tables(conn):
             FragmentIdentifier TEXT DEFAULT NULL,
             Url TEXT NOT NULL,
             FullMatch TEXT NOT NULL,
-            PRIMARY KEY(Id),
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
             FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
             FOREIGN KEY(PostBlockVersionId) REFERENCES PostBlockVersion(Id)
         );"""
     sql_create_commenturl = """
         CREATE TABLE CommentUrl (
-            Id INT NOT NULL AUTOINCREMENT,
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
             PostId INT NOT NULL,
             CommentId INT NOT NULL,
             LinkType VARCHAR(32) NOT NULL,
@@ -414,12 +410,11 @@ def create_sotorrent_tables(conn):
             FragmentIdentifier TEXT DEFAULT NULL,
             Url TEXT NOT NULL,
             FullMatch TEXT NOT NULL,
-            PRIMARY KEY(Id),
             FOREIGN KEY(CommentId) REFERENCES Comments(Id)
         );"""
     sql_create_postreferencegh = """
         CREATE TABLE PostReferenceGH (
-            Id INT NOT NULL AUTOINCREMENT,
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
             FileId VARCHAR(40) NOT NULL,
             Repo VARCHAR(255) NOT NULL,
             RepoOwner VARCHAR(255) NOT NULL,
@@ -434,13 +429,12 @@ def create_sotorrent_tables(conn):
             CommentId INT DEFAULT NULL,
             SOUrl TEXT NOT NULL,
             GHUrl TEXT NOT NULL,
-            PRIMARY KEY(Id),
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
             FOREIGN KEY(PostTypeId) REFERENCES PostType(Id)
         );"""
     sql_create_titleversion = """
         CREATE TABLE TitleVersion (
-            Id INT NOT NULL AUTOINCREMENT,
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
             PostId INT NOT NULL,
             PostTypeId TINYINT NOT NULL,
             PostHistoryId INT NOT NULL,
@@ -451,7 +445,6 @@ def create_sotorrent_tables(conn):
             PredEditDistance INT DEFAULT NULL,
             SuccPostHistoryId INT DEFAULT NULL,
             SuccEditDistance INT DEFAULT NULL,
-            PRIMARY KEY(Id),
             UNIQUE(PostHistoryId, PredPostHistoryId, SuccPostHistoryId),
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
             FOREIGN KEY(PostTypeId) REFERENCES PostType(Id),
@@ -493,9 +486,6 @@ def create_sotorrent_tables(conn):
 def load_sotorrent(conn):
     """sqlite version of 6_load_sotorrent.sql"""
     c = conn.cursor()
-
-    # load from csv into sqlitedb
-    commit_block = 1024 * 1024
 
     # PostBlockDiff
     csv_filepath = os.path.join(script_dir, "PostBlockDiff.csv")
@@ -548,7 +538,7 @@ def load_sotorrent(conn):
                 INSERT INTO PostVersion
                     (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId,
                     CreationDate, PredPostHistoryId, SuccPostHistoryId)
-                    VALUES (?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?)
                 """, (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId,
                       CreationDate, PredPostHistoryId, SuccPostHistoryId))
             counter += 1
@@ -730,19 +720,125 @@ def load_sotorrent(conn):
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
-
-    conn.commit()
     print("6_load_sotorrent done")
 
 
+def load_postreferencegh(conn):
+    """7_load_postreferencegh.sql"""
+    c = conn.cursor()
+
+    csv_filepath = os.path.join(script_dir, "PostReferenceGH.csv")
+    with open(csv_filepath) as csvfile:
+        t_start = datetime.now()
+        print("\tStarting PostReferenceGH at {}".format(t_start))
+        c.execute("PRAGMA foreign_keys = OFF;")
+        csv_reader = reader(csvfile, delimiter=',', quotechar='"')
+        counter = 0
+        commit_counter = 0
+        skipped_one = False
+        for row in csv_reader:
+            if not skipped_one:
+                skipped_one = True
+                continue
+            (FileId, Repo, RepoOwner, RepoName, Branch, Path, FileExt, Size,
+             Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl) = row
+            if not CommentId:
+                CommentId = None
+            c.execute("""
+                INSERT INTO PostReferenceGH
+                    (FileId, Repo, RepoOwner, RepoName, Branch, Path, FileExt, Size,
+                     Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (FileId, Repo, RepoOwner, RepoName, Branch, Path, FileExt, Size,
+             Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl))
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
+        print("\tPostReferenceGH took {} ({} rows)".format(
+            datetime.now() - t_start, counter))
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+    print("7_load_postreferencegh done")
+
+
+def load_ghmatches(conn):
+    """8_load_ghmatches.sql"""
+    c = conn.cursor()
+
+    csv_filepath = os.path.join(script_dir, "GHMatches.csv")
+    with open(csv_filepath) as csvfile:
+        t_start = datetime.now()
+        print("\tStarting GHMatches at {}".format(t_start))
+        c.execute("PRAGMA foreign_keys = OFF;")
+        csv_reader = reader(csvfile, delimiter=',', quotechar='"')
+        counter = 0
+        commit_counter = 0
+        skipped_one = False
+        for row in csv_reader:
+            if not skipped_one:
+                skipped_one = True
+                continue
+            (FileId, MatchedLine) = row
+            MatchedLine = MatchedLine.replace('&#xD;&#xA;', '\n')
+            c.execute("INSERT INTO GHMatches VALUES (?,?)", (FileId, MatchedLine))
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
+        print("\tGHMatches took {} ({} rows)".format(
+            datetime.now() - t_start, counter))
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+    print("8_load_ghmatches done")
+
+
+def create_sotorrent_indicies(conn):
+    """9_create_sotorrent_indices.sql"""
+    c = conn.cursor()
+    c.execute("CREATE INDEX postblockdiff_index_1 ON PostBlockDiff(LocalId);")
+    c.execute("CREATE INDEX postblockdiff_index_2 ON PostBlockDiff(PredLocalId);")
+
+    c.execute("CREATE INDEX postblockversion_index_1 ON PostBlockVersion(LocalId);")
+    c.execute("CREATE INDEX postblockversion_index_2 ON PostBlockVersion(PredLocalId);")
+    c.execute("CREATE INDEX postblockversion_index_3 ON PostBlockVersion(RootLocalId);")
+    c.execute("CREATE INDEX postblockversion_index_4 ON PostBlockVersion(PredSimilarity);")
+    c.execute("CREATE INDEX postblockversion_index_5 ON PostBlockVersion(PredCount);")
+    c.execute("CREATE INDEX postblockversion_index_6 ON PostBlockVersion(SuccCount);")
+    c.execute("CREATE INDEX postblockversion_index_7 ON PostBlockVersion(Length);")
+    c.execute("CREATE INDEX postblockversion_index_8 ON PostBlockVersion(LineCount);")
+
+    c.execute("CREATE INDEX commenturl_index_1 ON CommentUrl(PostId);")
+
+    c.execute("CREATE INDEX postreferencegh_index_1 ON PostReferenceGH(FileId);")
+    c.execute("CREATE INDEX postreferencegh_index_2 ON PostReferenceGH(RepoName);")
+    c.execute("CREATE INDEX postreferencegh_index_3 ON PostReferenceGH(Branch);")
+    c.execute("CREATE INDEX postreferencegh_index_4 ON PostReferenceGH(FileExt);")
+    c.execute("CREATE INDEX postreferencegh_index_5 ON PostReferenceGH(Size);")
+    c.execute("CREATE INDEX postreferencegh_index_6 ON PostReferenceGH(Copies);")
+
+    c.execute("CREATE INDEX titleversion_index_1 ON TitleVersion(PredEditDistance);")
+    c.execute("CREATE INDEX titleversion_index_2 ON TitleVersion(SuccEditDistance);")
+
+    c.execute("CREATE INDEX ghmatches_index_1 ON GHMatches(FileId);")
+    print("9_create_sotorrent_indicies done")
+
 def main():
     try:
-        conn = connect(db_file)
-        # create_database(conn)
-        # load_so_from_xml(conn)
-        # create_indicies(conn)
-        # unnecessary to create sotorrent user
-        load_sotorrent(conn)
+        conn=connect(db_file)
+        create_database(conn)           # 1_create_database
+        load_so_from_xml(conn)          # 2_load_so_from_xml
+        create_indicies(conn)           # 3_create_indices
+        create_sotorrent_tables(conn)   # 4_create_sotorrent_tables
+        # unnecessary                   # 5_create_sotorrent_user
+        load_sotorrent(conn)            # 6_load_sotorrent
+        load_postreferencegh(conn)      # 7_load_postreferencegh
+        load_ghmatches(conn)            # 8_load_ghmatches
+        create_sotorrent_indicies(conn) # 9_create_sotorrent_indicies
 
     except Error as e:
         print(e)
