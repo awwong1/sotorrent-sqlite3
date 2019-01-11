@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import os
-import sqlite3
-from sqlite3 import Error
+from csv import reader
+from sqlite3 import connect, Error
 from xml.etree.ElementTree import iterparse
 from datetime import datetime
 
@@ -224,47 +224,526 @@ def load_so_from_xml(conn):
     """sqlite version of 2_load_so_from_xml.sql"""
     c = conn.cursor()
 
-    table = "Users"
+    tables = ["Users", "Badges", "Posts", "Comments",
+              "PostHistory", "PostLinks", "Tags", "Votes"]
 
-    # load from xml
-    xml_filepath = os.path.join(script_dir, "{}.xml".format(table))
-    context = iterparse(xml_filepath, events=("end",))
+    for table in tables:
+        # load from xml
+        xml_filepath = os.path.join(script_dir, "{}.xml".format(table))
+        context = iterparse(xml_filepath, events=("end",))
 
-    t_start = datetime.now()
-    c.execute("PRAGMA foreign_keys = OFF;")
-    commit_block = 1024 * 1024 # arbitrary
-    counter = 0
-    commit_counter = 0
-    for _, elm in context:
-        if elm.tag != "row":
-            continue
-        columns = elm.keys()
-        values = [elm.get(column) for column in columns]
-        sql_insert = "INSERT INTO {table} ({columns}) VALUES ({q_s})".format(
-            table="Users",
-            columns=", ".join(columns),
-            q_s=", ".join(["?" for _ in range(0, len(columns))])
-        )
-        # print(sql_insert, [values])
-        c.execute(sql_insert, values)
-        counter += 1
-        if counter % commit_block == 0:
-            conn.commit() # must commit or all changes still in memory
-            commit_counter += 1
-            print("\tcommit no {}, elapsed: {}".format(
-                commit_counter, datetime.now() - t_start))
+        t_start = datetime.now()
+        print("\tStarting {} at {}".format(table, t_start))
+        c.execute("PRAGMA foreign_keys = OFF;")
+        commit_block = 1024 * 1024  # arbitrary
+        counter = 0
+        commit_counter = 0
+        for _, elm in context:
+            if elm.tag != "row":
+                continue
+            columns = elm.keys()
+            values = [elm.get(column) for column in columns]
+            sql_insert = "INSERT INTO {table} ({columns}) VALUES ({q_s})".format(
+                table="Users",
+                columns=", ".join(columns),
+                q_s=", ".join(["?" for _ in range(0, len(columns))])
+            )
+            # print(sql_insert, [values])
+            c.execute(sql_insert, values)
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
 
-    c.execute("PRAGMA foreign_keys = ON;")
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+        print("\t{} took {} ({} rows)".format(
+            table, datetime.now() - t_start, counter))
+
+    print("2_load_so_from_xml done")
+
+
+def create_indicies(conn):
+    """3_create_indicies.sql"""
+    c = conn.cursor()
+    c.execute("CREATE INDEX comments_index_1 ON Comments(UserId);")
+    c.execute("CREATE INDEX comments_index_2 ON Comments(UserDisplayName);")
+
+    c.execute("CREATE INDEX post_history_index_1 ON PostHistory(UserId);")
+    c.execute("CREATE INDEX post_history_index_2 ON PostHistory(UserDisplayName);")
+
+    c.execute("CREATE INDEX posts_index_1 ON Posts(OwnerUserId);")
+    c.execute("CREATE INDEX posts_index_2 ON Posts(LastEditorUserId);")
+    c.execute("CREATE INDEX posts_index_3 ON Posts(OwnerDisplayName);")
+
+    c.execute("CREATE INDEX users_index_1 ON Users(DisplayName);")
     conn.commit()
-    print("\t{} took {} ({} rows)".format(table, datetime.now() - t_start, counter))
+    print("3_create_indicies done")
 
+
+def create_sotorrent_tables(conn):
+    """4_create_sotorrent_tables.sql"""
+
+    sql_create_postblocktype = """
+        CREATE TABLE PostBlockType (
+            Id TINYINT NOT NULL,
+            Type VARCHAR(50) NOT NULL,
+            PRIMARY KEY(Id)
+        );"""
+    sql_postblocktypes = [(1, 'TextBlock'), (2, 'CodeBlock')]
+    sql_insert_postblocktype = "INSERT INTO PostBlockType VALUES(?,?);"
+
+    sql_create_postblockdiffoperation = """
+        CREATE TABLE PostBlockDiffOperation (
+            Id TINYINT NOT NULL,
+            Name VARCHAR(50) NOT NULL,
+            PRIMARY KEY(Id)
+        );"""
+    sql_postblockdiffoperations = [(-1, 'DELETE'), (0, 'EQUAL'), (1, 'INSERT')]
+    sql_insert_postblockdiffoperations = "INSERT INTO PostBlockDiffOperation VALUES(?, ?);"
+
+    sql_create_postversion = """
+        CREATE TABLE PostVersion (
+            Id INT NOT NULL AUTOINCREMENT,
+            PostId INT NOT NULL,
+            PostTypeId TINYINT NOT NULL,
+            PostHistoryId INT NOT NULL,
+            PostHistoryTypeId TINYINT NOT NULL,
+            CreationDate DATETIME NOT NULL,
+            PredPostHistoryId INT DEFAULT NULL,
+            SuccPostHistoryId INT DEFAULT NULL,
+            PRIMARY KEY(Id),
+            UNIQUE(PostHistoryId, PredPostHistoryId, SuccPostHistoryId),
+            FOREIGN KEY(PostId) REFERENCES Posts(Id),
+            FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(PostTypeId) REFERENCES PostType(Id),
+            FOREIGN KEY(PostHistoryTypeId) REFERENCES PostHistoryType(Id),
+            FOREIGN KEY(PredPostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(SuccPostHistoryId) REFERENCES PostHistory(Id)
+        );"""
+
+    sql_create_postblockversion = """
+        CREATE TABLE PostBlockVersion (
+            Id INT NOT NULL AUTOINCREMENT,
+            PostBlockTypeId TINYINT NOT NULL,
+            PostId INT NOT NULL,
+            PostHistoryId INT NOT NULL,
+            LocalId INT NOT NULL,
+            PredPostBlockVersionId INT DEFAULT NULL,
+            PredPostHistoryId INT DEFAULT NULL,
+            PredLocalId INT DEFAULT NULL,
+            RootPostBlockVersionId INT DEFAULT NULL,
+            RootPostHistoryId INT DEFAULT NULL,
+            RootLocalId INT DEFAULT NULL,
+            PredEqual BOOLEAN DEFAULT NULL,
+            PredSimilarity DOUBLE DEFAULT NULL,
+            PredCount INT DEFAULT NULL,
+            SuccCount INT DEFAULT NULL,
+            Length INT NOT NULL,
+            LineCount INT NOT NULL,
+            Content TEXT NOT NULL,
+            PRIMARY KEY(Id),
+            UNIQUE(PostHistoryId, PostBlockTypeId, LocalId),
+            FOREIGN KEY(PostBlockTypeId) REFERENCES PostBlockType(Id),
+            FOREIGN KEY(PostId) REFERENCES Posts(Id),
+            FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(PredPostBlockVersionId) REFERENCES PostBlockVersion(Id),
+            FOREIGN KEY(PredPostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(RootPostBlockVersionId) REFERENCES PostBlockVersion(Id),
+            FOREIGN KEY(RootPostHistoryId) REFERENCES PostHistory(Id)
+        );"""
+
+    sql_create_postblockdiff = """
+        CREATE TABLE PostBlockDiff (
+            Id INT NOT NULL AUTOINCREMENT,
+            PostId INT NOT NULL,
+            PostHistoryId INT NOT NULL,
+            LocalId INT NOT NULL,
+            PostBlockVersionId INT NOT NULL,
+            PredPostHistoryId INT NOT NULL,
+            PredLocalId INT NOT NULL,
+            PredPostBlockVersionId INT NOT NULL,
+            PostBlockDiffOperationId TINYINT NOT NULL,
+            Text TEXT NOT NULL,
+            PRIMARY KEY(Id),
+            FOREIGN KEY(PostId) REFERENCES Posts(Id),
+            FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(PredPostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(PostBlockDiffOperationId) REFERENCES PostBlockDiffOperation(Id),
+            FOREIGN KEY(PostBlockVersionId) REFERENCES PostBlockVersion(Id),
+            FOREIGN KEY(PredPostBlockVersionId) REFERENCES PostBlockVersion(Id)
+        );"""
+
+    sql_create_postversionurl = """
+        CREATE TABLE PostVersionUrl (
+            Id INT NOT NULL AUTOINCREMENT,
+            PostId INT NOT NULL,
+            PostHistoryId INT NOT NULL,
+            PostBlockVersionId INT NOT NULL,
+            LinkType VARCHAR(32) NOT NULL,
+            LinkPosition VARCHAR(32) NOT NULL,
+            LinkAnchor TEXT DEFAULT NULL,
+            Protocol TEXT NOT NULL,
+            RootDomain TEXT NOT NULL,
+            CompleteDomain TEXT NOT NULL,
+            Path TEXT DEFAULT NULL,
+            Query TEXT DEFAULT NULL,
+            FragmentIdentifier TEXT DEFAULT NULL,
+            Url TEXT NOT NULL,
+            FullMatch TEXT NOT NULL,
+            PRIMARY KEY(Id),
+            FOREIGN KEY(PostId) REFERENCES Posts(Id),
+            FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(PostBlockVersionId) REFERENCES PostBlockVersion(Id)
+        );"""
+    sql_create_commenturl = """
+        CREATE TABLE CommentUrl (
+            Id INT NOT NULL AUTOINCREMENT,
+            PostId INT NOT NULL,
+            CommentId INT NOT NULL,
+            LinkType VARCHAR(32) NOT NULL,
+            LinkPosition VARCHAR(32) NOT NULL,
+            LinkAnchor TEXT DEFAULT NULL,
+            Protocol TEXT NOT NULL,
+            RootDomain TEXT NOT NULL,
+            CompleteDomain TEXT NOT NULL,
+            Path TEXT DEFAULT NULL,
+            Query TEXT DEFAULT NULL,
+            FragmentIdentifier TEXT DEFAULT NULL,
+            Url TEXT NOT NULL,
+            FullMatch TEXT NOT NULL,
+            PRIMARY KEY(Id),
+            FOREIGN KEY(CommentId) REFERENCES Comments(Id)
+        );"""
+    sql_create_postreferencegh = """
+        CREATE TABLE PostReferenceGH (
+            Id INT NOT NULL AUTOINCREMENT,
+            FileId VARCHAR(40) NOT NULL,
+            Repo VARCHAR(255) NOT NULL,
+            RepoOwner VARCHAR(255) NOT NULL,
+            RepoName VARCHAR(255) NOT NULL,
+            Branch VARCHAR(255) NOT NULL,
+            Path TEXT NOT NULL,
+            FileExt VARCHAR(255) NOT NULL,
+            Size INT NOT NULL,
+            Copies INT NOT NULL,
+            PostId INT NOT NULL,
+            PostTypeId TINYINT NOT NULL,
+            CommentId INT DEFAULT NULL,
+            SOUrl TEXT NOT NULL,
+            GHUrl TEXT NOT NULL,
+            PRIMARY KEY(Id),
+            FOREIGN KEY(PostId) REFERENCES Posts(Id),
+            FOREIGN KEY(PostTypeId) REFERENCES PostType(Id)
+        );"""
+    sql_create_titleversion = """
+        CREATE TABLE TitleVersion (
+            Id INT NOT NULL AUTOINCREMENT,
+            PostId INT NOT NULL,
+            PostTypeId TINYINT NOT NULL,
+            PostHistoryId INT NOT NULL,
+            PostHistoryTypeId TINYINT NOT NULL,
+            CreationDate DATETIME NOT NULL,
+            Title TEXT NOT NULL,
+            PredPostHistoryId INT DEFAULT NULL,
+            PredEditDistance INT DEFAULT NULL,
+            SuccPostHistoryId INT DEFAULT NULL,
+            SuccEditDistance INT DEFAULT NULL,
+            PRIMARY KEY(Id),
+            UNIQUE(PostHistoryId, PredPostHistoryId, SuccPostHistoryId),
+            FOREIGN KEY(PostId) REFERENCES Posts(Id),
+            FOREIGN KEY(PostTypeId) REFERENCES PostType(Id),
+            FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(PostHistoryTypeId) REFERENCES PostHistoryType(Id),
+            FOREIGN KEY(PredPostHistoryId) REFERENCES PostHistory(Id),
+            FOREIGN KEY(SuccPostHistoryId) REFERENCES PostHistory(Id)
+        );"""
+    sql_create_ghmatches = """
+        CREATE TABLE GHMatches (
+            FileId VARCHAR(40) NOT NULL,
+            MatchedLine LONGTEXT NOT NULL
+        );"""
+
+    c = conn.cursor()
+    # PostBlockType
+    c.execute(sql_create_postblocktype)
+    c.executemany(sql_insert_postblocktype, sql_postblocktypes)
+
+    # PostBlockDiffOperation
+    c.execute(sql_create_postblockdiffoperation)
+    c.executemany(sql_insert_postblockdiffoperations,
+                  sql_postblockdiffoperations)
+
+    # SO Torrent data tables
+    c.execute(sql_create_postversion)
+    c.execute(sql_create_postblockversion)
+    c.execute(sql_create_postblockdiff)
+    c.execute(sql_create_postversionurl)
+    c.execute(sql_create_commenturl)
+    c.execute(sql_create_postreferencegh)
+    c.execute(sql_create_titleversion)
+    c.execute(sql_create_ghmatches)
+
+    conn.commit()
+    print("4_create_sotorrent_tables done")
+
+
+def load_sotorrent(conn):
+    """sqlite version of 6_load_sotorrent.sql"""
+    c = conn.cursor()
+
+    # load from csv into sqlitedb
+    commit_block = 1024 * 1024
+
+    # PostBlockDiff
+    csv_filepath = os.path.join(script_dir, "PostBlockDiff.csv")
+    with open(csv_filepath) as csvfile:
+        t_start = datetime.now()
+        c.execute("PRAGMA foreign_keys = OFF;")
+        print("\tStarting PostBlockDiff at {}".format(t_start))
+        csv_reader = reader(csvfile, delimiter=',', quotechar='"')
+        counter = 0
+        commit_counter = 0
+        for row in csv_reader:
+            (Id, PostId, PostHistoryId, LocalId, PostBlockVersionId, PredPostHistoryId,
+             PredLocalId, PredPostBlockVersionId, PostBlockDiffOperationId, Text) = row
+            Text = Text.replace('&#xD;&#xA;', '\n')
+            c.execute("""
+                INSERT INTO PostBlockDiff
+                    (Id, PostId, PostHistoryId, LocalId, PostBlockVersionId, PredPostHistoryId,
+                    PredLocalId, PredPostBlockVersionId, PostBlockDiffOperationId, Text)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
+                """, (Id, PostId, PostHistoryId, LocalId, PostBlockVersionId, PredPostHistoryId,
+                      PredLocalId, PredPostBlockVersionId, PostBlockDiffOperationId, Text))
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
+        print("\tPostBlockDiff took {} ({} rows)".format(
+            datetime.now() - t_start, counter))
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+
+    # PostVersion
+    csv_filepath = os.path.join(script_dir, "PostVersion.csv")
+    with open(csv_filepath) as csvfile:
+        t_start = datetime.now()
+        c.execute("PRAGMA foreign_keys = OFF;")
+        print("\tStarting PostVersion at {}".format(t_start))
+        csv_reader = reader(csvfile, delimiter=',', quotechar='"')
+        counter = 0
+        commit_counter = 0
+        for row in csv_reader:
+            (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId,
+             CreationDate, PredPostHistoryId, SuccPostHistoryId) = row
+            if not PredPostHistoryId:
+                PredPostHistoryId = None
+            if not SuccPostHistoryId:
+                SuccPostHistoryId = None
+            c.execute("""
+                INSERT INTO PostVersion
+                    (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId,
+                    CreationDate, PredPostHistoryId, SuccPostHistoryId)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
+                """, (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId,
+                      CreationDate, PredPostHistoryId, SuccPostHistoryId))
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
+        print("\tPostVersion took {} ({} rows)".format(
+            datetime.now() - t_start, counter))
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+
+    # PostBlockVersion
+    csv_filepath = os.path.join(script_dir, "PostBlockVersion.csv")
+    with open(csv_filepath) as csvfile:
+        t_start = datetime.now()
+        print("\tStarting PostBlockVersion at {}".format(t_start))
+        c.execute("PRAGMA foreign_keys = OFF;")
+        csv_reader = reader(csvfile, delimiter=',', quotechar='"')
+        counter = 0
+        commit_counter = 0
+        for row in csv_reader:
+            (Id, PostBlockTypeId, PostId, PostHistoryId, LocalId, PredPostBlockVersionId, PredPostHistoryId, PredLocalId, RootPostBlockVersionId,
+             RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content) = row
+            Content = Content.replace('&#xD;&#xA;', '\n')
+            if not PredPostBlockVersionId:
+                PredPostBlockVersionId = None
+            if not PredPostHistoryId:
+                PredPostHistoryId = None
+            if not PredLocalId:
+                PredLocalId = None
+            if not RootPostBlockVersionId:
+                RootPostBlockVersionId = None
+            if not RootPostHistoryId:
+                RootPostHistoryId = None
+            if not RootLocalId:
+                RootLocalId = None
+            if not PredEqual:
+                PredEqual = None
+            if not PredSimilarity:
+                PredSimilarity = None
+            if not PredCount:
+                PredCount = None
+            if not SuccCount:
+                SuccCount = None
+            c.execute("""
+                INSERT INTO PostBlockVersion
+                    (Id, PostBlockTypeId, PostId, PostHistoryId, LocalId, PredPostBlockVersionId, PredPostHistoryId, PredLocalId, RootPostBlockVersionId,
+                    RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (Id, PostBlockTypeId, PostId, PostHistoryId, LocalId, PredPostBlockVersionId, PredPostHistoryId, PredLocalId, RootPostBlockVersionId,
+                      RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content))
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
+        print("\tPostBlockVersion took {} ({} rows)".format(
+            datetime.now() - t_start, counter))
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+
+    # PostVersionUrl
+    csv_filepath = os.path.join(script_dir, "PostVersionUrl.csv")
+    with open(csv_filepath) as csvfile:
+        t_start = datetime.now()
+        print("\tStarting PostVersionUrl at {}".format(t_start))
+        c.execute("PRAGMA foreign_keys = OFF;")
+        csv_reader = reader(csvfile, delimiter=',', quotechar='"')
+        counter = 0
+        commit_counter = 0
+        for row in csv_reader:
+            (Id, PostId, PostHistoryId, PostBlockVersionId, LinkType, LinkPosition, LinkAnchor,
+             Protocol, RootDomain, CompleteDomain, Path, Query, FragmentIdentifier, Url, FullMatch) = row
+            LinkAnchor = LinkAnchor.replace('&#xD;&#xA;', '\n')
+            if not LinkAnchor:
+                LinkAnchor = None
+            if not Path:
+                Path = None
+            if not Query:
+                Query = None
+            if not FragmentIdentifier:
+                FragmentIdentifier = None
+            FullMatch = FullMatch.replace('&#xD;&#xA;', '\n')
+            c.execute("""
+                INSERT INTO PostVersionUrl
+                    (Id, PostId, PostHistoryId, PostBlockVersionId, LinkType, LinkPosition, LinkAnchor,
+                     Protocol, RootDomain, CompleteDomain, Path, Query, FragmentIdentifier, Url, FullMatch)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (Id, PostId, PostHistoryId, PostBlockVersionId, LinkType, LinkPosition, LinkAnchor,
+                      Protocol, RootDomain, CompleteDomain, Path, Query, FragmentIdentifier, Url, FullMatch))
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
+        print("\tPostVersionUrl took {} ({} rows)".format(
+            datetime.now() - t_start, counter))
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+
+    # CommentUrl
+    csv_filepath = os.path.join(script_dir, "CommentUrl.csv")
+    with open(csv_filepath) as csvfile:
+        t_start = datetime.now()
+        print("\tStarting CommentUrl at {}".format(t_start))
+        c.execute("PRAGMA foreign_keys = OFF;")
+        csv_reader = reader(csvfile, delimiter=',', quotechar='"')
+        counter = 0
+        commit_counter = 0
+        for row in csv_reader:
+            (Id, PostId, CommentId, LinkType, LinkPosition, LinkAnchor, Protocol, RootDomain,
+             CompleteDomain, Path, Query, FragmentIdentifier, Url, FullMatch) = row
+            LinkAnchor = LinkAnchor.replace('&#xD;&#xA;', '\n')
+            if not LinkAnchor:
+                LinkAnchor = None
+            if not Path:
+                Path = None
+            if not Query:
+                Query = None
+            if not FragmentIdentifier:
+                FragmentIdentifier = None
+            FullMatch = FullMatch.replace('&#xD;&#xA;', '\n')
+            c.execute("""
+                INSERT INTO CommentUrl
+                    (Id, PostId, CommentId, LinkType, LinkPosition, LinkAnchor, Protocol, RootDomain,
+                     CompleteDomain, Path, Query, FragmentIdentifier, Url, FullMatch)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (Id, PostId, CommentId, LinkType, LinkPosition, LinkAnchor, Protocol, RootDomain,
+                      CompleteDomain, Path, Query, FragmentIdentifier, Url, FullMatch))
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
+        print("\tCommentUrl took {} ({} rows)".format(
+            datetime.now() - t_start, counter))
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+
+    # TitleVersion
+    csv_filepath = os.path.join(script_dir, "TitleVersion.csv")
+    with open(csv_filepath) as csvfile:
+        t_start = datetime.now()
+        print("\tStarting TitleVersion at {}".format(t_start))
+        c.execute("PRAGMA foreign_keys = OFF;")
+        csv_reader = reader(csvfile, delimiter=',', quotechar='"')
+        counter = 0
+        commit_counter = 0
+        for row in csv_reader:
+            (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId, CreationDate, Title,
+             PredPostHistoryId, PredEditDistance, SuccPostHistoryId, SuccEditDistance) = row
+            if not PredPostHistoryId:
+                PredPostHistoryId = None
+            if not PredEditDistance:
+                PredEditDistance = None
+            if not SuccPostHistoryId:
+                SuccPostHistoryId = None
+            if not SuccEditDistance:
+                SuccEditDistance = None
+            c.execute("""
+                INSERT INTO TitleVersion
+                    (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId, CreationDate, Title,
+                     PredPostHistoryId, PredEditDistance, SuccPostHistoryId, SuccEditDistance)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                """, (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId, CreationDate, Title,
+                      PredPostHistoryId, PredEditDistance, SuccPostHistoryId, SuccEditDistance))
+            counter += 1
+            if counter % commit_block == 0:
+                conn.commit()  # must commit or all changes still in memory
+                commit_counter += 1
+                print("\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start))
+        print("\tTitleVersion took {} ({} rows)".format(
+            datetime.now() - t_start, counter))
+        c.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+
+    conn.commit()
+    print("6_load_sotorrent done")
 
 
 def main():
     try:
-        conn = sqlite3.connect(db_file)
-        create_database(conn)
-        load_so_from_xml(conn)
+        conn = connect(db_file)
+        # create_database(conn)
+        # load_so_from_xml(conn)
+        # create_indicies(conn)
+        # unnecessary to create sotorrent user
+        load_sotorrent(conn)
+
     except Error as e:
         print(e)
     finally:
