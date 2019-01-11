@@ -9,7 +9,7 @@ from datetime import datetime
 script_dir = os.path.dirname(os.path.abspath(__file__))
 db_file_name = "sotorrent18_12.sqlite3"
 db_file = os.path.join(script_dir, db_file_name)
-commit_block = 1024  # arbitrary
+commit_block = 100000  # arbitrary
 
 
 def create_database(conn):
@@ -254,12 +254,12 @@ def load_so_from_xml(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
 
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
-        print("\t{} took {} ({} rows)".format(
+        print("\n\t{} took {} ({} rows)".format(
             table, datetime.now() - t_start, counter))
 
     print("2_load_so_from_xml done")
@@ -511,9 +511,9 @@ def load_sotorrent(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
-        print("\tPostBlockDiff took {} ({} rows)".format(
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
+        print("\n\tPostBlockDiff took {} ({} rows)".format(
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
@@ -545,9 +545,9 @@ def load_sotorrent(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
-        print("\tPostVersion took {} ({} rows)".format(
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
+        print("\n\tPostVersion took {} ({} rows)".format(
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
@@ -596,9 +596,9 @@ def load_sotorrent(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
-        print("\tPostBlockVersion took {} ({} rows)".format(
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
+        print("\n\tPostBlockVersion took {} ({} rows)".format(
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
@@ -636,9 +636,9 @@ def load_sotorrent(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
-        print("\tPostVersionUrl took {} ({} rows)".format(
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
+        print("\n\tPostVersionUrl took {} ({} rows)".format(
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
@@ -676,9 +676,9 @@ def load_sotorrent(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
-        print("\tCommentUrl took {} ({} rows)".format(
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
+        print("\n\tCommentUrl took {} ({} rows)".format(
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
@@ -714,9 +714,9 @@ def load_sotorrent(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
-        print("\tTitleVersion took {} ({} rows)".format(
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
+        print("\n\tTitleVersion took {} ({} rows)".format(
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
@@ -755,9 +755,9 @@ def load_postreferencegh(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
-        print("\tPostReferenceGH took {} ({} rows)".format(
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
+        print("\n\tPostReferenceGH took {} ({} rows)".format(
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
@@ -788,9 +788,9 @@ def load_ghmatches(conn):
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
                 commit_counter += 1
-                print("\tcommit no {}, elapsed: {}".format(
-                    commit_counter, datetime.now() - t_start))
-        print("\tGHMatches took {} ({} rows)".format(
+                print("\r\tcommit no {}, elapsed: {}".format(
+                    commit_counter, datetime.now() - t_start), end="")
+        print("\n\tGHMatches took {} ({} rows)".format(
             datetime.now() - t_start, counter))
         c.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
