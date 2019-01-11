@@ -244,7 +244,7 @@ def load_so_from_xml(conn):
             columns = elm.keys()
             values = [elm.get(column) for column in columns]
             sql_insert = "INSERT INTO {table} ({columns}) VALUES ({q_s})".format(
-                table="Users",
+                table=table,
                 columns=", ".join(columns),
                 q_s=", ".join(["?" for _ in range(0, len(columns))])
             )
