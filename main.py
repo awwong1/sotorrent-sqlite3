@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import os
-from csv import reader
+import sys
+from csv import reader, field_size_limit
 from sqlite3 import connect, Error
 from xml.etree.ElementTree import iterparse
 from datetime import datetime
@@ -772,6 +773,8 @@ def load_ghmatches(conn):
     """8_load_ghmatches.sql"""
     c = conn.cursor()
 
+    field_size_limit(sys.maxsize) # GHMatches csv threw error
+
     csv_filepath = os.path.join(script_dir, "GHMatches.csv")
     with open(csv_filepath) as csvfile:
         t_start = datetime.now()
@@ -834,6 +837,10 @@ def create_sotorrent_indicies(conn):
 def main():
     try:
         conn=connect(db_file)
+
+        sc_start = datetime.now()
+        print("Started {}".format(sc_start))
+
         create_database(conn)           # 1_create_database
         load_so_from_xml(conn)          # 2_load_so_from_xml
         create_indicies(conn)           # 3_create_indices
@@ -843,6 +850,10 @@ def main():
         load_postreferencegh(conn)      # 7_load_postreferencegh
         load_ghmatches(conn)            # 8_load_ghmatches
         create_sotorrent_indicies(conn) # 9_create_sotorrent_indicies
+
+        sc_end = datetime.now()
+        print("Ended {}".format(sc_end))
+        print("Elapsed: {}".format(sc_end - sc_start))
 
     except Error as e:
         print(e)
