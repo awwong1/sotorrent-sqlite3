@@ -19,7 +19,7 @@ To cite this work, please use the following:
 ```text
 @misc{
   wong_2019,
-  title={awwong1/sotorrent-sqlite3},
+  title={github.com:awwong1/sotorrent-sqlite3},
   url={https://github.com/awwong1/sotorrent-sqlite3},
   author={Alexander W. Wong},
   year={2019},
