@@ -21,9 +21,7 @@ To cite this work, please use the following:
   wong_2019,
   title={awwong1/sotorrent-sqlite3},
   url={https://github.com/awwong1/sotorrent-sqlite3},
-  journal={awwong1/sotorrent-sqlite3},
-  publisher={GitHub},
-  author={Wong, Alexander W},
+  author={Alexander W. Wong},
   year={2019},
   month={Jan}
 }

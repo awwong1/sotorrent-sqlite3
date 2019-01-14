@@ -15,6 +15,7 @@ commit_block = 100000  # arbitrary
 
 def create_database(conn):
     """sqlite version of 1_create_database.sql"""
+    print("1_create_database begin")
 
     # PostType
     sql_create_posttype = """
@@ -224,6 +225,7 @@ def create_database(conn):
 
 def load_so_from_xml(conn):
     """sqlite version of 2_load_so_from_xml.sql"""
+    print("2_load_so_from_xml begin")
     c = conn.cursor()
 
     tables = ["Users", "Badges", "Posts", "Comments",
@@ -272,6 +274,7 @@ def load_so_from_xml(conn):
 
 def create_indicies(conn):
     """3_create_indicies.sql"""
+    print("3_create_indicies begin")
     c = conn.cursor()
     c.execute("CREATE INDEX comments_index_1 ON Comments(UserId);")
     c.execute("CREATE INDEX comments_index_2 ON Comments(UserDisplayName);")
@@ -290,6 +293,7 @@ def create_indicies(conn):
 
 def create_sotorrent_tables(conn):
     """4_create_sotorrent_tables.sql"""
+    print("4_create_sotorrent_tables begin")
 
     sql_create_postblocktype = """
         CREATE TABLE PostBlockType (
@@ -490,6 +494,7 @@ def create_sotorrent_tables(conn):
 
 def load_sotorrent(conn):
     """sqlite version of 6_load_sotorrent.sql"""
+    print("6_load_sotorrent begin")
     c = conn.cursor()
 
     # PostBlockDiff
@@ -730,6 +735,7 @@ def load_sotorrent(conn):
 
 def load_postreferencegh(conn):
     """7_load_postreferencegh.sql"""
+    print("7_load_postreferencegh begin")
     c = conn.cursor()
 
     csv_filepath = os.path.join(script_dir, "PostReferenceGH.csv")
@@ -755,7 +761,7 @@ def load_postreferencegh(conn):
                      Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (FileId, Repo, RepoOwner, RepoName, Branch, Path, FileExt, Size,
-             Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl))
+                      Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl))
             counter += 1
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
@@ -771,9 +777,10 @@ def load_postreferencegh(conn):
 
 def load_ghmatches(conn):
     """8_load_ghmatches.sql"""
+    print("8_load_ghmatches begin")
     c = conn.cursor()
 
-    field_size_limit(sys.maxsize) # GHMatches csv threw error
+    field_size_limit(sys.maxsize)  # GHMatches csv threw error
 
     csv_filepath = os.path.join(script_dir, "GHMatches.csv")
     with open(csv_filepath) as csvfile:
@@ -790,7 +797,8 @@ def load_ghmatches(conn):
                 continue
             (FileId, MatchedLine) = row
             MatchedLine = MatchedLine.replace('&#xD;&#xA;', '\n')
-            c.execute("INSERT INTO GHMatches VALUES (?,?)", (FileId, MatchedLine))
+            c.execute("INSERT INTO GHMatches VALUES (?,?)",
+                      (FileId, MatchedLine))
             counter += 1
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
@@ -806,18 +814,25 @@ def load_ghmatches(conn):
 
 def create_sotorrent_indicies(conn):
     """9_create_sotorrent_indices.sql"""
+    print("9_create_sotorrent_indicies begin")
     c = conn.cursor()
     c.execute("CREATE INDEX postblockdiff_index_1 ON PostBlockDiff(LocalId);")
     c.execute("CREATE INDEX postblockdiff_index_2 ON PostBlockDiff(PredLocalId);")
 
     c.execute("CREATE INDEX postblockversion_index_1 ON PostBlockVersion(LocalId);")
-    c.execute("CREATE INDEX postblockversion_index_2 ON PostBlockVersion(PredLocalId);")
-    c.execute("CREATE INDEX postblockversion_index_3 ON PostBlockVersion(RootLocalId);")
-    c.execute("CREATE INDEX postblockversion_index_4 ON PostBlockVersion(PredSimilarity);")
-    c.execute("CREATE INDEX postblockversion_index_5 ON PostBlockVersion(PredCount);")
-    c.execute("CREATE INDEX postblockversion_index_6 ON PostBlockVersion(SuccCount);")
+    c.execute(
+        "CREATE INDEX postblockversion_index_2 ON PostBlockVersion(PredLocalId);")
+    c.execute(
+        "CREATE INDEX postblockversion_index_3 ON PostBlockVersion(RootLocalId);")
+    c.execute(
+        "CREATE INDEX postblockversion_index_4 ON PostBlockVersion(PredSimilarity);")
+    c.execute(
+        "CREATE INDEX postblockversion_index_5 ON PostBlockVersion(PredCount);")
+    c.execute(
+        "CREATE INDEX postblockversion_index_6 ON PostBlockVersion(SuccCount);")
     c.execute("CREATE INDEX postblockversion_index_7 ON PostBlockVersion(Length);")
-    c.execute("CREATE INDEX postblockversion_index_8 ON PostBlockVersion(LineCount);")
+    c.execute(
+        "CREATE INDEX postblockversion_index_8 ON PostBlockVersion(LineCount);")
 
     c.execute("CREATE INDEX commenturl_index_1 ON CommentUrl(PostId);")
 
@@ -832,24 +847,26 @@ def create_sotorrent_indicies(conn):
     c.execute("CREATE INDEX titleversion_index_2 ON TitleVersion(SuccEditDistance);")
 
     c.execute("CREATE INDEX ghmatches_index_1 ON GHMatches(FileId);")
+    conn.commit()
     print("9_create_sotorrent_indicies done")
+
 
 def main():
     try:
-        conn=connect(db_file)
+        conn = connect(db_file)
 
         sc_start = datetime.now()
         print("Started {}".format(sc_start))
 
-        create_database(conn)           # 1_create_database
-        load_so_from_xml(conn)          # 2_load_so_from_xml
-        create_indicies(conn)           # 3_create_indices
-        create_sotorrent_tables(conn)   # 4_create_sotorrent_tables
-        # unnecessary                   # 5_create_sotorrent_user
-        load_sotorrent(conn)            # 6_load_sotorrent
-        load_postreferencegh(conn)      # 7_load_postreferencegh
-        load_ghmatches(conn)            # 8_load_ghmatches
-        create_sotorrent_indicies(conn) # 9_create_sotorrent_indicies
+        create_database(conn)            # 1_create_database
+        load_so_from_xml(conn)           # 2_load_so_from_xml
+        create_indicies(conn)            # 3_create_indices
+        create_sotorrent_tables(conn)    # 4_create_sotorrent_tables
+        # unnecessary                    # 5_create_sotorrent_user
+        load_sotorrent(conn)             # 6_load_sotorrent
+        load_postreferencegh(conn)       # 7_load_postreferencegh
+        load_ghmatches(conn)             # 8_load_ghmatches
+        create_sotorrent_indicies(conn)  # 9_create_sotorrent_indicies
 
         sc_end = datetime.now()
         print("Ended {}".format(sc_end))
