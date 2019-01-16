@@ -27,6 +27,45 @@ To cite this work, please use the following:
 }
 ```
 
+Please also refer to and cite the original work. [https://github.com/sotorrent/db-scripts/tree/master/sotorrent](https://github.com/sotorrent/db-scripts/tree/master/sotorrent)
+
+```text
+@inproceedings{DBLP:conf/msr/BaltesDT008,
+  author    = {Sebastian Baltes and
+               Lorik Dumani and
+               Christoph Treude and
+               Stephan Diehl},
+  title     = {SOTorrent: reconstructing and analyzing the evolution of stack overflow
+               posts},
+  booktitle = {Proceedings of the 15th International Conference on Mining Software
+               Repositories, {MSR} 2018, Gothenburg, Sweden, May 28-29, 2018},
+  pages     = {319--330},
+  year      = {2018},
+  crossref  = {DBLP:conf/msr/2018},
+  url       = {https://doi.org/10.1145/3196398.3196430},
+  doi       = {10.1145/3196398.3196430},
+  timestamp = {Mon, 07 Jan 2019 17:17:42 +0100},
+  biburl    = {https://dblp.org/rec/bib/conf/msr/BaltesDT008},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@proceedings{DBLP:conf/msr/2018,
+  editor    = {Andy Zaidman and
+               Yasutaka Kamei and
+               Emily Hill},
+  title     = {Proceedings of the 15th International Conference on Mining Software
+               Repositories, {MSR} 2018, Gothenburg, Sweden, May 28-29, 2018},
+  publisher = {{ACM}},
+  year      = {2018},
+  url       = {http://dl.acm.org/citation.cfm?id=3196398},
+  timestamp = {Mon, 23 Jul 2018 13:46:25 +0200},
+  biburl    = {https://dblp.org/rec/bib/conf/msr/2018},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+```
+
+
+
 ## License
 
 [Apache V2](LICENSE).
