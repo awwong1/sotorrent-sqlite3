@@ -10,6 +10,26 @@ Run `gunzip *.gz` to unpack all archives.
 
 Run `python3 main.py` to begin the creation of `sotorrent18_12.sqlite3`. This will take a long time (~2 Days).
 
+## Data
+
+[Generated data can be downloaded here.](https://drive.google.com/open?id=1N6E2_wOKR_FB3ClAhXSWJb7CjOlbubSd)
+
+Unpack using `gzip -d` or `gunzip`.
+
+```text
+-r--r--r-- 1 alex alex 374G Jan 15 08:41 sotorrent18_12.sqlite3
+-r--r--r-- 1 alex alex 106G Jan 15 08:41 sotorrent18_12.sqlite3.gz
+```
+
+## SHASUMS
+
+```text
+$ shasum -a 256 sotorrent18_12.sqlite3*
+727b9fc671f442ec859f97c45c1af4e99d2a7d94ef27272fa29a6a054f3de88b  sotorrent18_12.sqlite3
+eebe87b1a0f519b56c6012b306ac2576a10dc1bdd1d45af215b1c8b8268bb238  sotorrent18_12.sqlite3.gz
+```
+
+
 ## Terms of Use
 
 **If you are in Abram's Winter 2019 CMPUT 663 class and are using this script or the sotorrent18_12.sqlite3 in your project, I would like to be listed as a co-author in your submission.**
