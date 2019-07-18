@@ -8,7 +8,7 @@ from xml.etree.ElementTree import iterparse
 from datetime import datetime
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-db_file_name = "sotorrent18_12.sqlite3"
+db_file_name = "sotorrent.sqlite3"
 db_file = os.path.join(script_dir, db_file_name)
 commit_block = 100000  # arbitrary
 
@@ -323,6 +323,7 @@ def create_sotorrent_tables(conn):
             CreationDate DATETIME NOT NULL,
             PredPostHistoryId INT DEFAULT NULL,
             SuccPostHistoryId INT DEFAULT NULL,
+            MostRecentVersion BOOLEAN DEFAULT FALSE,
             UNIQUE(PostHistoryId, PredPostHistoryId, SuccPostHistoryId),
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
             FOREIGN KEY(PostHistoryId) REFERENCES PostHistory(Id),
@@ -352,6 +353,7 @@ def create_sotorrent_tables(conn):
             Length INT NOT NULL,
             LineCount INT NOT NULL,
             Content TEXT NOT NULL,
+            MostRecentVersion BOOLEAN DEFAULT FALSE,
             UNIQUE(PostHistoryId, PostBlockTypeId, LocalId),
             FOREIGN KEY(PostBlockTypeId) REFERENCES PostBlockType(Id),
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
@@ -434,12 +436,11 @@ def create_sotorrent_tables(conn):
             Size INT NOT NULL,
             Copies INT NOT NULL,
             PostId INT NOT NULL,
-            PostTypeId TINYINT NOT NULL,
             CommentId INT DEFAULT NULL,
             SOUrl TEXT NOT NULL,
             GHUrl TEXT NOT NULL,
             FOREIGN KEY(PostId) REFERENCES Posts(Id),
-            FOREIGN KEY(PostTypeId) REFERENCES PostType(Id)
+            FOREIGN KEY(CommentId) REFERENCES Comments(Id)
         );"""
     sql_create_titleversion = """
         CREATE TABLE TitleVersion (
@@ -465,6 +466,7 @@ def create_sotorrent_tables(conn):
     sql_create_ghmatches = """
         CREATE TABLE GHMatches (
             FileId VARCHAR(40) NOT NULL,
+            PostIds TEXT NOT NULL,
             MatchedLine LONGTEXT NOT NULL
         );"""
 
@@ -539,7 +541,7 @@ def load_sotorrent(conn):
         commit_counter = 0
         for row in csv_reader:
             (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId,
-             CreationDate, PredPostHistoryId, SuccPostHistoryId) = row
+             CreationDate, PredPostHistoryId, SuccPostHistoryId, MostRecentVersion) = row
             if not PredPostHistoryId:
                 PredPostHistoryId = None
             if not SuccPostHistoryId:
@@ -547,10 +549,10 @@ def load_sotorrent(conn):
             c.execute("""
                 INSERT INTO PostVersion
                     (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId,
-                    CreationDate, PredPostHistoryId, SuccPostHistoryId)
-                    VALUES (?,?,?,?,?,?,?,?)
+                    CreationDate, PredPostHistoryId, SuccPostHistoryId, MostRecentVersion)
+                    VALUES (?,?,?,?,?,?,?,?,?)
                 """, (Id, PostId, PostTypeId, PostHistoryId, PostHistoryTypeId,
-                      CreationDate, PredPostHistoryId, SuccPostHistoryId))
+                      CreationDate, PredPostHistoryId, SuccPostHistoryId, MostRecentVersion))
             counter += 1
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
@@ -573,7 +575,7 @@ def load_sotorrent(conn):
         commit_counter = 0
         for row in csv_reader:
             (Id, PostBlockTypeId, PostId, PostHistoryId, LocalId, PredPostBlockVersionId, PredPostHistoryId, PredLocalId, RootPostBlockVersionId,
-             RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content) = row
+             RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content, MostRecentVersion) = row
             Content = Content.replace('&#xD;&#xA;', '\n')
             if not PredPostBlockVersionId:
                 PredPostBlockVersionId = None
@@ -598,10 +600,10 @@ def load_sotorrent(conn):
             c.execute("""
                 INSERT INTO PostBlockVersion
                     (Id, PostBlockTypeId, PostId, PostHistoryId, LocalId, PredPostBlockVersionId, PredPostHistoryId, PredLocalId, RootPostBlockVersionId,
-                    RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content, MostRecentVersion)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (Id, PostBlockTypeId, PostId, PostHistoryId, LocalId, PredPostBlockVersionId, PredPostHistoryId, PredLocalId, RootPostBlockVersionId,
-                      RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content))
+                      RootPostHistoryId, RootLocalId, PredEqual, PredSimilarity, PredCount, SuccCount, Length, LineCount, Content, MostRecentVersion))
             counter += 1
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
@@ -752,16 +754,16 @@ def load_postreferencegh(conn):
                 skipped_one = True
                 continue
             (FileId, Repo, RepoOwner, RepoName, Branch, Path, FileExt, Size,
-             Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl) = row
+             Copies, PostId, CommentId, SOUrl, GHUrl) = row
             if not CommentId:
                 CommentId = None
             c.execute("""
                 INSERT INTO PostReferenceGH
                     (FileId, Repo, RepoOwner, RepoName, Branch, Path, FileExt, Size,
-                     Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     Copies, PostId, CommentId, SOUrl, GHUrl)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (FileId, Repo, RepoOwner, RepoName, Branch, Path, FileExt, Size,
-                      Copies, PostId, PostTypeId, CommentId, SOUrl, GHUrl))
+                      Copies, PostId, CommentId, SOUrl, GHUrl))
             counter += 1
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
@@ -795,10 +797,10 @@ def load_ghmatches(conn):
             if not skipped_one:
                 skipped_one = True
                 continue
-            (FileId, MatchedLine) = row
+            (FileId, PostIds, MatchedLine) = row
             MatchedLine = MatchedLine.replace('&#xD;&#xA;', '\n')
-            c.execute("INSERT INTO GHMatches VALUES (?,?)",
-                      (FileId, MatchedLine))
+            c.execute("INSERT INTO GHMatches VALUES (?,?,?)",
+                      (FileId, PostIds, MatchedLine))
             counter += 1
             if counter % commit_block == 0:
                 conn.commit()  # must commit or all changes still in memory
